@@ -195,7 +195,7 @@ init-namespace:
 	$(run-fxconfig)
 
 # Wholesale CBDC namespaces used by X-Client (branch `two-org`). Existing namespaces are skipped.
-# See X-Client docs/POLICIES.md before changing these policies.
+# Changing a policy here also needs the same rule in every X-Client config (endorsement_policies).
 define register
 	out=$$($(MAKE) --no-print-directory init-namespace NS=$(1) POLICY="$(2)" 2>&1) || { echo "$$out" | tail -20; echo "Error: could not register $(1)"; exit 1; }; \
 	echo "  ok  $(1)  $(2)"
