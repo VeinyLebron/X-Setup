@@ -6,7 +6,7 @@ A local Fabric-X network for the [X-Client](https://github.com/VeinyLebron/X-Cli
 |---|---|
 | Orderer | Arma, 4 parties; routers on `7050`, `7150`, `7250`, `7350` |
 | Channel | `mychannel` |
-| Containers | 35 |
+| Containers | 34 |
 
 | Organization | MSP ID | Query Service | Sidecar | Role in X-Client |
 |---|---|---|---|---|

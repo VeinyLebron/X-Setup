@@ -17,7 +17,7 @@ Run one setup at a time.
 | Docker with Compose v2 | `docker compose version` | |
 | Docker without `sudo` | `docker ps` works | Linux: `sudo usermod -aG docker $USER`, then **log out and back in** |
 | `git`, `make` | `git --version`, `make --version` | |
-| ~4 GB free RAM, ~5 GB disk | | the 3-org setup runs 35 containers |
+| ~4 GB free RAM, ~5 GB disk | | the 3-org setup runs 34 containers |
 | Free ports | `7050 7150 7250 7350`, `7001`–`7003`, `4001`–`4003`, `8080`–`8082` | |
 | Go 1.27.3+ | `go version` | only to run X-Client outside Docker |
 
