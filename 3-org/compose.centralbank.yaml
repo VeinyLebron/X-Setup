@@ -1,0 +1,191 @@
+# Central Bank committer stack (6 containers + a one-shot init-db) — mirrors compose.org2.yaml for centralbank.example.com.
+# CentralBankMSP is in the genesis block (see configtx.yaml Application.Organizations).
+# Host ports: sidecar 4003, query service 7003.
+#
+# Start together with the other stacks:
+#   docker compose -f compose.yaml -f compose.org2.yaml -f compose.centralbank.yaml up -d
+
+networks:
+  fabric-x:
+    name: fabric-x
+
+services:
+  committer-cb-db:
+    image: docker.io/library/postgres:18.3-alpine3.23
+    pull_policy: missing
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sc_db
+      POSTGRES_USER: sc_user
+      POSTGRES_PASSWORD: sc_secret_pwd
+    volumes:
+      - ./data/committer-cb/db:/var/lib/postgresql:Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sc_user -d sc_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+      start_interval: 1s
+    networks:
+      - fabric-x
+
+  # One-shot DB schema init (required since committer v1.0.5); see compose.yaml.
+  committer-cb-init-db:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: "no"
+    user: "${UID:-1000}:${GID:-1000}"
+    command: init-db --config=/config/validator.yaml
+    volumes:
+      - ./config/committer-validator.yaml:/config/validator.yaml:ro,Z
+    environment:
+      SC_VC_DATABASE_ENDPOINTS: committer-cb-db:5432
+    depends_on:
+      committer-cb-db:
+        condition: service_healthy
+    networks:
+      - fabric-x
+
+  committer-cb-verifier:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    command: start verifier --config=/config/verifier.yaml
+    volumes:
+      - ./config/committer-verifier.yaml:/config/verifier.yaml:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/peers/committer-cb-verifier.centralbank.example.com/tls:/node-tls:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/msp/tlscacerts/tlsca.centralbank.example.com-cert.pem:/org-tls-ca.pem:ro,Z
+    healthcheck:
+      test: ["CMD", "/bin/entrypoint", "healthcheck", "verifier", "--config", "/config/verifier.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks:
+      - fabric-x
+
+  committer-cb-validator:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    command: start vc --config=/config/validator.yaml
+    volumes:
+      - ./config/committer-validator.yaml:/config/validator.yaml:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/peers/committer-cb-validator.centralbank.example.com/tls:/node-tls:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/msp/tlscacerts/tlsca.centralbank.example.com-cert.pem:/org-tls-ca.pem:ro,Z
+    environment:
+      SC_VC_DATABASE_ENDPOINTS: committer-cb-db:5432
+    depends_on:
+      committer-cb-db:
+        condition: service_healthy
+      committer-cb-init-db:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/entrypoint", "healthcheck", "vc", "--config", "/config/validator.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks:
+      - fabric-x
+
+  committer-cb-coordinator:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    command: start coordinator --config=/config/coordinator.yaml
+    volumes:
+      - ./config/committer-coordinator.yaml:/config/coordinator.yaml:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/peers/committer-cb-coordinator.centralbank.example.com/tls:/node-tls:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/msp/tlscacerts/tlsca.centralbank.example.com-cert.pem:/org-tls-ca.pem:ro,Z
+    environment:
+      SC_COORDINATOR_VERIFIER_ENDPOINTS: committer-cb-verifier:5001
+      SC_COORDINATOR_VALIDATOR_COMMITTER_ENDPOINTS: committer-cb-validator:6001
+    depends_on:
+      committer-cb-verifier:
+        condition: service_healthy
+      committer-cb-validator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/entrypoint", "healthcheck", "coordinator", "--config", "/config/coordinator.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks:
+      - fabric-x
+
+  committer-cb-sidecar:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    command: start sidecar --config=/config/sidecar.yaml
+    ports:
+      - "4003:4001"
+    volumes:
+      - ./config/committer-sidecar.yaml:/config/sidecar.yaml:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/peers/committer-cb-sidecar.centralbank.example.com/tls:/node-tls:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/msp/tlscacerts/tlsca.centralbank.example.com-cert.pem:/org-tls-ca.pem:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/users/User1@centralbank.example.com/msp:/msp:ro,Z
+      - ./crypto/config-block.pb.bin:/bootstrap/genesis.block:ro,Z
+      - ./data/committer-cb/sidecar-ledger:/ledger:Z
+    environment:
+      SC_SIDECAR_ORDERER_IDENTITY_MSP_ID: CentralBankMSP
+      SC_SIDECAR_COMMITTER_ENDPOINT: committer-cb-coordinator:9001
+    depends_on:
+      committer-cb-coordinator:
+        condition: service_healthy
+      orderer-party1-router:
+        condition: service_healthy
+      orderer-party2-router:
+        condition: service_healthy
+      orderer-party3-router:
+        condition: service_healthy
+      orderer-party4-router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/entrypoint", "healthcheck", "sidecar", "--config", "/config/sidecar.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks:
+      - fabric-x
+
+  committer-cb-query-service:
+    image: ghcr.io/hyperledger/fabric-x-committer:1.0.5
+    pull_policy: missing
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    command: start query --config=/config/query-service.yaml
+    ports:
+      - "7003:7001"
+    volumes:
+      - ./config/committer-query-service.yaml:/config/query-service.yaml:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/peers/committer-cb-query-service.centralbank.example.com/tls:/node-tls:ro,Z
+      - ./crypto/peerOrganizations/centralbank.example.com/msp/tlscacerts/tlsca.centralbank.example.com-cert.pem:/org-tls-ca.pem:ro,Z
+    environment:
+      SC_QUERY_DATABASE_ENDPOINTS: committer-cb-db:5432
+    depends_on:
+      committer-cb-db:
+        condition: service_healthy
+      committer-cb-init-db:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/entrypoint", "healthcheck", "query", "--config", "/config/query-service.yaml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+      start_interval: 1s
+    networks:
+      - fabric-x

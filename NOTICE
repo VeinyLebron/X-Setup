@@ -1,0 +1,23 @@
+X-Setup
+Copyright (c) 2026 VeinyLebron
+
+The 2-org/ and 3-org/ folders are derived from the devnet of Hyperledger Fabric-X samples:
+
+  hyperledger/fabric-x-samples  https://github.com/hyperledger/fabric-x-samples
+  Copyright IBM Corp. and contributors, licensed under the Apache License 2.0
+  (see 2-org/LICENSE and 3-org/LICENSE).
+
+Those folders remain under the Apache License 2.0. Modifications:
+
+2-org/
+  - Makefile: `up`, `status`, `down`, `reset`, `help`, `wait-healthy` and
+    `init-namespace-cbdc` targets; bash port probes instead of `nc`; guard
+    against running two networks at once.
+  - README.md: X-Setup usage section added above the upstream text.
+
+3-org/
+  - All 2-org changes, plus a third peer organization (CentralBankMSP):
+    crypto-config.yaml, configtx.yaml (application orgs, LifecycleEndorsement),
+    compose.centralbank.yaml (its committer stack) and the `start-3org` target.
+
+Everything else in this repository is licensed under the MIT License (see LICENSE).
