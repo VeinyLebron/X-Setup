@@ -21,7 +21,7 @@ POLICY  ?= AND('Org1MSP.member','Org2MSP.member')
 NETWORK ?= fabric-x
 
 # Port probe that needs only bash (netcat is not installed everywhere).
-port_open = bash -c 'exec 3<>/dev/tcp/127.0.0.1/$(1)' 2>/dev/null
+port_open = bash -c "exec 3<>/dev/tcp/127.0.0.1/$(1)" 2>/dev/null
 
 # Containers started from this folder (Compose labels them with their project directory).
 OWN_CONTAINERS = $(DOCKER) ps --filter label=com.docker.compose.project.working_dir=$(FABRICX_DIR)
